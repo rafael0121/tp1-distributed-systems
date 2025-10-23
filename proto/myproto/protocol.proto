@@ -10,7 +10,7 @@ service PrintingService {
 // Serviço para comunicação entre CLIENTES (implementado nos clientes)
 service MutualExclusionService {
   rpc RequestAccess (AccessRequest) returns (AccessResponse);
-  rpc ReleaseAccess (AccessRelease) returns (PrintResponse);
+  rpc ReleaseAccess (AccessRelease) returns (Empty);
 }
 
 // Mensagens para impressão (cliente -> servidor burro)
@@ -44,3 +44,5 @@ message AccessRelease {
   int64 lamport_timestamp = 2;
   int32 request_number = 3;
 }
+
+message Empty {}

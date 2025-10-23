@@ -20,16 +20,14 @@ class PrintingService final : public distributed_printing::PrintingService::Serv
             std::string message = request->message_content();
 
             // Write message to stdout.
-            std::cout << "[TS: " + std::to_string(lamport_timestamp) +"]" + "CLIENT " + std::to_string(client_id) +": " + message;
+            std::cout << "[TS: " << lamport_timestamp << "] " << "CLIENT " << client_id << ": " << message << std::endl;
 
             // Simulate a printing time.
             sleep(3);
 
-            server_lamportClock.updateTimeStamp(lamport_timestamp);
-
             response->set_success(true);
-            response->set_confirmation_message("Ok");
-            response->set_lamport_timestamp(server_lamportClock.curTimeStamp());
+            response->set_confirmation_message("Ok, this was printed!");
+            response->set_lamport_timestamp(server_lamportClock.updateTimeStamp(lamport_timestamp));
 
             return grpc::Status::OK;
         }
