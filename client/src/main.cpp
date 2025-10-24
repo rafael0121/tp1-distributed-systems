@@ -12,25 +12,31 @@
 #include <vector>
 #include <list>
 
+#define TOTAL_CLIENTS 2
+
 // Client states
 #define WHATEVER 1
 #define HOLDING  2
 #define WAITING  3
 
-// Clients that consume the printes too.
-std::list<int> neighbors;
+// Port server.
+std::string server_address;
+
+// Port of clientes that also consume the printer.
+std::list<std::string> neighbors_address;
 
 // List of request awaiting.
 int neighbors_waiting = 0;
 std::vector<int> neighbors_requests = {0, 0, 0};
 
 // Count release replyed.
-int neighbors_released;
+int neighbors_released = 0;
 
 /* This client status */
-int my_state = WHATEVER; // Current state.
-Lamport my_timestamp;    // Current lamport timestamp.
-int32_t my_request_number = 0;
+int my_state = WHATEVER;       // Current state.
+Lamport my_timestamp;          // Current lamport timestamp.
+int32_t my_request_number = 0; // Request number.
+int32_t my_id = -1;            // Client identifier.
 
 
 class MutualExclusionService final : public distributed_printing::MutualExclusionService::Service {
@@ -95,26 +101,41 @@ int start_client_server (){
     return true;
 }
 
-int request_print(){
-    // Setup request
-    distributed_printing::AccessRequest request;
-    distributed_printing::AccessResponse response;
+int request_access(){
+    std::list<std::string> address = neighbors_address;
 
-    request.set_client_id(0);
-    request.set_lamport_timestamp(my_timestamp.curTimeStamp());
-    request.set_request_number(my_request_number);
+    while(!address.empty()){
+        std::string _address = address.back();
 
-    // Call
-    auto channel = grpc::CreateChannel("localhost:50052", grpc::InsecureChannelCredentials());
-    std::unique_ptr<distributed_printing::MutualExclusionService::Stub> stub = distributed_printing::MutualExclusionService::NewStub(channel);
-    grpc::ClientContext context;
-    grpc::Status status = stub->RequestAccess(&context, request, &response);
+        // Setup request
+        distributed_printing::AccessRequest request;
+        distributed_printing::AccessResponse response;
+
+        request.set_client_id(my_id);
+        request.set_lamport_timestamp(my_timestamp.curTimeStamp());
+        request.set_request_number(my_request_number++);
+
+        // Call
+        auto channel = grpc::CreateChannel(_address, grpc::InsecureChannelCredentials());
+        std::unique_ptr<distributed_printing::MutualExclusionService::Stub> stub = distributed_printing::MutualExclusionService::NewStub(channel);
+        grpc::ClientContext context;
+        grpc::Status status = stub->RequestAccess(&context, request, &response);
+
+        // Update my timestamp.
+        my_timestamp.updateTimeStamp(response.lamport_timestamp());
+
+        if(response.access_granted()) {
+            neighbors_released++;
+        }
+
+        address.pop_back();
+    }
 
     return true;
 }
 
 int wannna_print() {
-    // request_print();
+    request_access();
 
     // Setup request
     distributed_printing::PrintRequest request;
@@ -138,11 +159,37 @@ int wannna_print() {
     return true;
 }
 
-int main() {
+int parse_args(int argc, char *argv[]){
+    for (int i = 1; i < argc; i++) {
+        if (std::string(argv[i]) == "--id") {
+            if(i + 1 < argc){
+                my_id = std::atoi(argv[i++]);
+            }
+        } else 
+        if (std::string(argv[i]) == "--client") {
+            if(i + 1 < argc){
+                neighbors_address.push_back(argv[i++]);
+            }
+        } else
+        if (std::string(argv[i]) == "--server") {
+            if(i + 1 < argc){
+                server_address = argv[i++];
+            }
+        }
+    }
+
+    if(server_address.empty() || my_id < 0){
+        return -1;
+    }
+
+    return 0;
+}
+
+int main(int argc, char *argv[]) {
     std::cout << "===# Client Started #===" << std::endl;
-    std::cout << "1# my_state: " << std::to_string(my_state) << " my_timestamp: " << my_timestamp.curTimeStamp()<< std::endl;
+
+    parse_args(argc, argv);
 
     wannna_print();
 
-    std::cout << "2# my_state: " << std::to_string(my_state) + " my_timestamp:  " << my_timestamp.curTimeStamp()<< std::endl;
 }
