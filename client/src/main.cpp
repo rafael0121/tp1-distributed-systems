@@ -163,17 +163,17 @@ int parse_args(int argc, char *argv[]){
     for (int i = 1; i < argc; i++) {
         if (std::string(argv[i]) == "--id") {
             if(i + 1 < argc){
-                my_id = std::atoi(argv[i++]);
+                my_id = std::atoi(argv[++i]);
             }
         } else 
         if (std::string(argv[i]) == "--client") {
             if(i + 1 < argc){
-                neighbors_address.push_back(argv[i++]);
+                neighbors_address.push_back(argv[++i]);
             }
         } else
         if (std::string(argv[i]) == "--server") {
             if(i + 1 < argc){
-                server_address = argv[i++];
+                server_address = argv[++i];
             }
         }
     }
@@ -188,8 +188,9 @@ int parse_args(int argc, char *argv[]){
 int main(int argc, char *argv[]) {
     std::cout << "===# Client Started #===" << std::endl;
 
-    parse_args(argc, argv);
-
-    wannna_print();
-
+    int ret = -1;
+    ret = parse_args(argc, argv);
+    if(ret < 0){
+        return -1;
+    }
 }
