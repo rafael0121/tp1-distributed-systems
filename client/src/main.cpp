@@ -38,7 +38,6 @@ Lamport my_timestamp;          // Current lamport timestamp.
 int32_t my_request_number = 0; // Request number.
 int32_t my_id = -1;            // Client identifier.
 
-
 class MutualExclusionService final : public distributed_printing::MutualExclusionService::Service {
     public:
         grpc::Status RequestAccess(grpc::ServerContext *context, const distributed_printing::AccessRequest *request, distributed_printing::AccessResponse *response) {
@@ -98,6 +97,8 @@ int start_client_server (){
 
     std::unique_ptr<grpc::Server> client_server(builder.BuildAndStart());
 
+    client_server->Wait();
+
     return true;
 }
 
@@ -134,29 +135,45 @@ int request_access(){
     return true;
 }
 
-int wannna_print() {
-    request_access();
-
+int send_print(std::string message) {
     // Setup request
     distributed_printing::PrintRequest request;
     distributed_printing::PrintResponse response;
 
     request.set_client_id(0);
-    request.set_message_content("Hello World!");
+    request.set_message_content(message);
     request.set_lamport_timestamp(my_timestamp.curTimeStamp());
     request.set_request_number(my_request_number);
 
     // Call
-    auto channel = grpc::CreateChannel("localhost:50051", grpc::InsecureChannelCredentials());
+    auto channel = grpc::CreateChannel(server_address, grpc::InsecureChannelCredentials());
     std::unique_ptr<distributed_printing::PrintingService::Stub> stub = distributed_printing::PrintingService::NewStub(channel);
     grpc::ClientContext context;
     grpc::Status status = stub->SendToPrinter(&context, request, &response);
 
-    std::cout << "Printer answer:" << response.confirmation_message() << std::endl;
+    std::cout <<"[TS: " << my_timestamp.curTimeStamp() << "]" << " Printer answer: " << response.confirmation_message() << std::endl;
 
     my_timestamp.updateTimeStamp(response.lamport_timestamp());
 
     return true;
+}
+
+int wanna_print() {
+    my_state = WAITING;
+
+    request_access();
+
+    while(neighbors_released < neighbors_address.size()) {
+        sleep(1);
+    }
+
+    my_state = HOLDING;
+
+    send_print("Hello, World!");
+
+    my_state = WHATEVER;
+ 
+    return 0;
 }
 
 int parse_args(int argc, char *argv[]){
@@ -192,5 +209,17 @@ int main(int argc, char *argv[]) {
     ret = parse_args(argc, argv);
     if(ret < 0){
         return -1;
+    }
+
+    if(my_id == 0){
+        my_state = WHATEVER;
+        start_client_server();
+    }
+
+    if(my_id == 1){
+        wanna_print();
+        std::cout << "Neighbors Released: " << neighbors_released << std::endl;
+        std::cout << "Neighbors waiting: " << neighbors_waiting << std::endl;
+        std::cout << "Lamport Timestamp: " << my_timestamp.curTimeStamp() << std::endl;
     }
 }

@@ -38,7 +38,7 @@ int main() {
     std::cout << "===# Server Started #===" << std::endl;
 
     grpc::ServerBuilder builder;
-    builder.AddListeningPort("0.0.0.0:50051", grpc::InsecureServerCredentials());
+    builder.AddListeningPort("localhost:50000", grpc::InsecureServerCredentials());
 
     PrintingService server_service;
     builder.RegisterService(&server_service);
