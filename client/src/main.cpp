@@ -56,7 +56,7 @@ void print_curstate(int func, int a, int b, int c, int d = -1){
               << std::endl
               << "[State: " << my_state << " ]" 
               << std::endl
-              << "[Timestamp: " << my_timestamp.curTimeStamp() << " ]" 
+              << "[Timestamp: " << my_timestamp.curTimestamp() << " ]" 
               << std::endl
               << "[RequestNumber: " << my_request_number << " ]"
               << std::endl
@@ -115,13 +115,13 @@ class MutualExclusionService final : public distributed_printing::MutualExclusio
                     access = true;
                 break;
                 case WAITING:
-                    if(my_timestamp.curTimeStamp() < client_timestamp){
+                    if(my_timestamp.curTimestamp() < client_timestamp){
                         access = true;
                     } else
-                    if(my_timestamp.curTimeStamp() > client_timestamp){
+                    if(my_timestamp.curTimestamp() > client_timestamp){
                         access = true;
                     } else
-                    if(my_timestamp.curTimeStamp() == client_timestamp){
+                    if(my_timestamp.curTimestamp() == client_timestamp){
                         // TODO: check last request number of this client before answer.
                         if(my_id < client_id){
                             access = true;
@@ -143,7 +143,7 @@ class MutualExclusionService final : public distributed_printing::MutualExclusio
             //print_curstate(REQUEST_ACCESS, client_id, client_timestamp, access, client_request_number);
 
             response->set_access_granted(access);
-            response->set_lamport_timestamp(my_timestamp.updateTimeStamp(client_timestamp));
+            response->set_lamport_timestamp(my_timestamp.updateTimestamp(client_timestamp));
 
             //std::cout << "DEBUG: Return RequestAccess" << std::endl;
 
@@ -172,7 +172,7 @@ class MutualExclusionService final : public distributed_printing::MutualExclusio
 
             //print_curstate(RELEASE_ACCESS, client_id, client_timestamp, client_request_number);
 
-            my_timestamp.updateTimeStamp(client_timestamp);
+            my_timestamp.updateTimestamp(client_timestamp);
 
             //std::cout << "DEBUG: Return ReleaseAccess" << std::endl;
 
@@ -191,7 +191,7 @@ int request_access(){
         distributed_printing::AccessResponse response;
 
         request.set_client_id(my_id);
-        request.set_lamport_timestamp(my_timestamp.curTimeStamp());
+        request.set_lamport_timestamp(my_timestamp.curTimestamp());
         request.set_request_number(my_request_number++);
 
         // Call
@@ -210,7 +210,7 @@ int request_access(){
         }
 
         // Update my timestamp.
-        my_timestamp.updateTimeStamp(response.lamport_timestamp());
+        my_timestamp.updateTimestamp(response.lamport_timestamp());
 
         if(response.access_granted()) {
             neighbors_released++;
@@ -240,7 +240,7 @@ int release_access(){
         distributed_printing::Empty empty_response;
 
         release.set_client_id(my_id);
-        release.set_lamport_timestamp(my_timestamp.curTimeStamp());
+        release.set_lamport_timestamp(my_timestamp.curTimestamp());
         release.set_request_number(my_request_number);
 
         // Call
@@ -250,7 +250,7 @@ int release_access(){
         grpc::Status status = stub->ReleaseAccess(&context, release, &empty_response);
 
         // Update my timestamp.
-        my_timestamp.updateTimeStamp();
+        my_timestamp.updateTimestamp();
 
         address.pop_back();
     }
@@ -265,7 +265,7 @@ void send_print(std::string message) {
 
     request.set_client_id(0);
     request.set_message_content(message);
-    request.set_lamport_timestamp(my_timestamp.curTimeStamp());
+    request.set_lamport_timestamp(my_timestamp.curTimestamp());
     request.set_request_number(my_request_number);
     request.set_client_id(my_id);
 
@@ -275,11 +275,11 @@ void send_print(std::string message) {
     grpc::ClientContext context;
     grpc::Status status = stub->SendToPrinter(&context, request, &response);
 
-    std::cout <<"[TS: " << my_timestamp.curTimeStamp() << " ]"
+    std::cout <<"[TS: " << my_timestamp.curTimestamp() << " ]"
               << "[Printer answer: " << response.confirmation_message()  << " ]"
               << std::endl;
 
-    my_timestamp.updateTimeStamp(response.lamport_timestamp());
+    my_timestamp.updateTimestamp(response.lamport_timestamp());
 }
 
 int wanna_print() {

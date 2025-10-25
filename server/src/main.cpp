@@ -32,7 +32,7 @@ class PrintingService final : public distributed_printing::PrintingService::Serv
 
             response->set_success(true);
             response->set_confirmation_message("Ok, this was printed!");
-            response->set_lamport_timestamp(server_lamportClock.updateTimeStamp(lamport_timestamp));
+            response->set_lamport_timestamp(server_lamportClock.updateTimestamp(lamport_timestamp));
 
             return grpc::Status::OK;
         }

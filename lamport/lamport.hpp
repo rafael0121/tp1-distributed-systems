@@ -9,13 +9,13 @@ class Lamport
 public:
     Lamport();
 
-    int64_t updateTimeStamp();
-    int64_t updateTimeStamp(int64_t);
+    int64_t updateTimestamp();
+    int64_t updateTimestamp(int64_t);
 
-    int64_t curTimeStamp() const;
+    int64_t curTimestamp() const;
 
 private:
-    int m_curTimeStamp;
+    int m_curTimestamp;
 };
 
 #endif // LAMPORT_H
