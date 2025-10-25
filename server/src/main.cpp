@@ -7,14 +7,19 @@
 #include <myproto/protocol.pb.h>
 
 #include <lamport.hpp>
+#include <string>
 
 // Lamport CLock
 Lamport server_lamportClock;
+
+// Server address
+std::string server_address;
 
 /* Printing Service: SendToPrinter*/
 class PrintingService final : public distributed_printing::PrintingService::Service{
     public:
         grpc::Status SendToPrinter(grpc::ServerContext *context, const distributed_printing::PrintRequest *request, distributed_printing::PrintResponse *response){
+
             int32_t client_id = request->client_id();
             int64_t lamport_timestamp = request->lamport_timestamp();
             std::string message = request->message_content();
@@ -33,12 +38,34 @@ class PrintingService final : public distributed_printing::PrintingService::Serv
         }
 
 };
+int parse_args(int argc, char *argv[]){
+    if (argc != 3) {
+        return -1;
+    }
 
-int main() {
+    if (std::string(argv[1]) == "--port") {
+        server_address = argv[2];
+    } 
+
+    if(server_address.empty()){
+        return -1;
+    }
+
+    return 0;
+}
+
+int main(int argc, char *argv[]) {
     std::cout << "===# Server Started #===" << std::endl;
 
+    /* Parse CLI Arguments*/
+    int ret = -1;
+    ret = parse_args(argc, argv);
+    if(ret < 0){
+        return -1;
+    }
+
     grpc::ServerBuilder builder;
-    builder.AddListeningPort("localhost:50000", grpc::InsecureServerCredentials());
+    builder.AddListeningPort(server_address, grpc::InsecureServerCredentials());
 
     PrintingService server_service;
     builder.RegisterService(&server_service);
