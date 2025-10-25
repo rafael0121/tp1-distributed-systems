@@ -3,6 +3,7 @@
 
 #include <vector>
 #include <cstdint>
+#include <mutex>
 
 class Lamport
 {
@@ -12,10 +13,11 @@ public:
     int64_t updateTimestamp();
     int64_t updateTimestamp(int64_t);
 
-    int64_t curTimestamp() const;
+    int64_t curTimestamp();
 
 private:
-    int m_curTimestamp;
+    int _curTimestamp;
+    std::mutex mt_curTimestamp;
 };
 
 #endif // LAMPORT_H

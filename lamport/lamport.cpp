@@ -1,21 +1,51 @@
 #include <lamport.hpp>
 
 // Constructor.
-Lamport::Lamport(): m_curTimestamp(1) {}
+Lamport::Lamport(): _curTimestamp(1) {}
 
 int64_t Lamport::updateTimestamp() {
-    m_curTimestamp = m_curTimestamp + 1;
-    return m_curTimestamp;
+    int32_t return_timestamp;
+
+    mt_curTimestamp.lock();
+
+    _curTimestamp = _curTimestamp + 1;
+
+    return_timestamp = _curTimestamp;
+
+    mt_curTimestamp.unlock();
+
+    return _curTimestamp;
 }
 
 int64_t Lamport::updateTimestamp(int64_t otherClock) {
-    if(otherClock > m_curTimestamp){
-        m_curTimestamp = otherClock + 1;
+    int32_t return_timestamp;
+
+    mt_curTimestamp.lock();
+
+    if(otherClock > _curTimestamp){
+
+        _curTimestamp = otherClock + 1;
+
+
     } else {
-        m_curTimestamp = m_curTimestamp + 1;
+        _curTimestamp = _curTimestamp + 1;
     }
-    return m_curTimestamp;
+    return_timestamp = _curTimestamp;
+
+    mt_curTimestamp.unlock();
+
+    return return_timestamp;
 }
 
 
-int64_t Lamport::curTimestamp() const { return m_curTimestamp; }
+int64_t Lamport::curTimestamp() { 
+    int32_t return_timestamp;
+
+    mt_curTimestamp.lock();
+
+    return_timestamp = _curTimestamp;
+
+    mt_curTimestamp.unlock();
+
+    return return_timestamp; 
+}
