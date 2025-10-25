@@ -52,7 +52,9 @@ std::string my_address;
 std::mutex mt_wanna;
 
 void print_curstate(int func, int a, int b, int c, int d = -1){
-    std::cout << "[State: " << my_state << " ]" 
+    std::cout << "START ================================="
+              << std::endl
+              << "[State: " << my_state << " ]" 
               << std::endl
               << "[Timestamp: " << my_timestamp.curTimeStamp() << " ]" 
               << std::endl
@@ -61,36 +63,47 @@ void print_curstate(int func, int a, int b, int c, int d = -1){
               << "[Neighbors Released: " << neighbors_released << " ]"
               << std::endl
               << "[Neighbors Waiting: " << neighbors_waiting << " ]"
+                << std::endl
+              << "END ================================="
               << std::endl;
 
     if(func == REQUEST_ACCESS){
-        std::cout << "======# Request Access"
-                << std::endl
-                << "[Client ID: " << a << " ]"
-                << std::endl
-                << "[Client Timestamp ID: " << b << " ]"
-                << std::endl
-                << "[Access: " << c << " ]"
-                << std::endl
-                << "[Client Request Number: " << d << " ]"
-                << std::endl;
+        std::cout << "START ================================="
+                  << std::endl
+                  << "Request Access"
+                  << std::endl
+                  << "[Client ID: " << a << " ]"
+                  << std::endl
+                  << "[Client Timestamp ID: " << b << " ]"
+                  << std::endl
+                  << "[Access: " << c << " ]"
+                  << std::endl
+                  << "[Client Request Number: " << d << " ]"
+                  << std::endl
+                  << "END ================================="
+                  << std::endl;
 
     } else 
     if(func == RELEASE_ACCESS){
-        std::cout << "======# Release Access"
-                << std::endl
-                << "[Client ID: " << a << " ]"
-                << std::endl
-                << "[Client Timestamp ID: " << b << " ]"
-                << std::endl
-                << "[Client Request Number: " << c << " ]"
-                << std::endl;
+        std::cout << "START ================================="
+                  << "Release Access"
+                  << std::endl
+                  << "[Client ID: " << a << " ]"
+                  << std::endl
+                  << "[Client Timestamp ID: " << b << " ]"
+                  << std::endl
+                  << "[Client Request Number: " << c << " ]"
+                  << std::endl
+                  << "END ================================="
+                  << std::endl;
     }
 }
 
 class MutualExclusionService final : public distributed_printing::MutualExclusionService::Service {
     public:
-        grpc::Status RequestAccess(grpc::ServerContext *context, const distributed_printing::AccessRequest *request, distributed_printing::AccessResponse *response) {
+        grpc::Status RequestAccess(grpc::ServerContext *context, const distributed_printing::AccessRequest *request, distributed_printing::AccessResponse *response) override {
+            //std::cout << "DEBUG: Execute RequestAccess" << std::endl;
+
             bool access = false;
 
             int32_t client_id = request->client_id();
@@ -127,15 +140,19 @@ class MutualExclusionService final : public distributed_printing::MutualExclusio
                 break;
             }
 
-            print_curstate(REQUEST_ACCESS, client_id, client_timestamp, access, client_request_number);
+            //print_curstate(REQUEST_ACCESS, client_id, client_timestamp, access, client_request_number);
 
             response->set_access_granted(access);
             response->set_lamport_timestamp(my_timestamp.updateTimeStamp(client_timestamp));
 
+            //std::cout << "DEBUG: Return RequestAccess" << std::endl;
+
             return grpc::Status::OK;
         };
 
-        grpc::Status ReleaseAccess (grpc::ServerContext *context, const distributed_printing::AccessRelease *request, distributed_printing::Empty *empty) {
+        grpc::Status ReleaseAccess (grpc::ServerContext *context, const distributed_printing::AccessRelease *request, distributed_printing::Empty *empty) override {
+            //std::cout << "DEBUG: Execute ReleaseAccess" << std::endl;
+
             int32_t client_id = request->client_id();
             int64_t client_timestamp = request->lamport_timestamp();
             int32_t client_request_number = request->request_number();
@@ -153,30 +170,15 @@ class MutualExclusionService final : public distributed_printing::MutualExclusio
                     }
             }
 
-            print_curstate(RELEASE_ACCESS, client_id, client_timestamp, client_request_number);
+            //print_curstate(RELEASE_ACCESS, client_id, client_timestamp, client_request_number);
 
             my_timestamp.updateTimeStamp(client_timestamp);
+
+            //std::cout << "DEBUG: Return ReleaseAccess" << std::endl;
 
             return grpc::Status::OK;
         };
 };
-
-int start_client_server (){
-    grpc::ServerBuilder builder;
-    builder.AddListeningPort(my_address, grpc::InsecureServerCredentials());
-
-    MutualExclusionService client_service;
-    builder.RegisterService(&client_service);
-
-    std::unique_ptr<grpc::Server> client_server(builder.BuildAndStart());
-
-    if(client_server == nullptr){
-        std::cout << "DEBUG: Failed to start client server" << std::endl;
-        return false;
-    }
-
-    return true;
-}
 
 int request_access(){
     std::list<std::string> address = neighbors_address;
@@ -196,10 +198,14 @@ int request_access(){
         auto channel = grpc::CreateChannel(_address, grpc::InsecureChannelCredentials());
         std::unique_ptr<distributed_printing::MutualExclusionService::Stub> stub = distributed_printing::MutualExclusionService::NewStub(channel);
         grpc::ClientContext context;
+
+        //std::cout << "DEBUG: Calling request_access"<< "Address: " << _address << "" << std::endl;
         grpc::Status status = stub->RequestAccess(&context, request, &response);
+        //std::cout << "DEBUG: returned request_access" << "Response Access: "<< response.access_granted() << std::endl;
 
         if(!status.ok()) {
             // Try again.
+            std::cout << "DEBUG: ERRO RequestAccess - " << status.error_details() << " - " << status.error_message();
             continue;
         }
 
@@ -261,6 +267,7 @@ void send_print(std::string message) {
     request.set_message_content(message);
     request.set_lamport_timestamp(my_timestamp.curTimeStamp());
     request.set_request_number(my_request_number);
+    request.set_client_id(my_id);
 
     // Call
     auto channel = grpc::CreateChannel(server_address, grpc::InsecureChannelCredentials());
@@ -269,8 +276,8 @@ void send_print(std::string message) {
     grpc::Status status = stub->SendToPrinter(&context, request, &response);
 
     std::cout <<"[TS: " << my_timestamp.curTimeStamp() << " ]"
-                << "[Printer answer: " << response.confirmation_message()  << " ]"
-                << std::endl;
+              << "[Printer answer: " << response.confirmation_message()  << " ]"
+              << std::endl;
 
     my_timestamp.updateTimeStamp(response.lamport_timestamp());
 }
@@ -278,26 +285,35 @@ void send_print(std::string message) {
 int wanna_print() {
     std::random_device rd;
     std::mt19937 gen(rd());
-    std::uniform_int_distribution<> dist(1, 10);
+    std::uniform_int_distribution<> dist(1, 30);
 
     while(true){
+
+        std::cout << std::endl << "##########################" << std::endl;
+
         // Sort a random number in seconds to sleep until the next asking to print.
         int seconds = dist(gen);
+        std::cout << "DEBUG: Waiting: " << seconds << "s" << std::endl;
         sleep(seconds);
 
         my_state = WAITING;
 
+        //std::cout << "DEBUG: Start request_access" << std::endl;
+        std::cout << ">>>>>>>>>>>>>> Requesting access" << std::endl;
         request_access(); // Request access to print.
+        //std::cout << "DEBUG: End request_access" << std::endl;
 
         // Wait access to print.
         mt_wanna.lock();
 
         my_state = HOLDING;
 
+        std::cout << ">>>>>>>>>>>>>> Printing" << std::endl;
         send_print("Hello, World!");
 
         my_state = WHATEVER;
 
+        std::cout << ">>>>>>>>>>>>>> Releasing Access" << std::endl;
         release_access();
     }
 }
@@ -343,9 +359,18 @@ int main(int argc, char *argv[]) {
 
     /* Threads */
     // Answer access requests.
-    if(!start_client_server()){
+    grpc::ServerBuilder builder;
+    builder.AddListeningPort(my_address, grpc::InsecureServerCredentials());
+
+    MutualExclusionService client_service;
+    builder.RegisterService(&client_service);
+
+    std::unique_ptr<grpc::Server> client_server = builder.BuildAndStart();
+
+    if(client_server.get() == nullptr){
+        std::cout << "DEBUG: Failed to start client server" << std::endl;
         return false;
-    };  
+    }
 
     std::cout << "===# Client [ " << my_id << " ] Port: [ " << my_address << " ] Started #===" << std::endl;
     wanna_print(); // Printer user.
