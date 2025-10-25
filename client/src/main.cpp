@@ -51,10 +51,12 @@ std::string my_address;
 /* Mutex free wanna_printer */
 std::mutex mt_wanna;
 
-void print_curstate(int func, int a, int b, int c, int d = -1){
-    std::cout << "START ================================="
-              << std::endl
-              << "[State: " << my_state << " ]" 
+void print_curstate(){
+
+    std::string state_str = my_state == RELEASED ? "RELEASED" : my_state == HOLDING ? "HOLDING" : "WAITING";
+
+    std::cout << std::endl
+              << "[State: " << state_str << " ]" 
               << std::endl
               << "[Timestamp: " << my_timestamp.curTimestamp() << " ]" 
               << std::endl
@@ -63,8 +65,7 @@ void print_curstate(int func, int a, int b, int c, int d = -1){
               << "[Neighbors Released: " << neighbors_released << " ]"
               << std::endl
               << "[Neighbors Waiting: " << neighbors_waiting << " ]"
-                << std::endl
-              << "END ================================="
+              << std::endl
               << std::endl;
 }
 
@@ -89,7 +90,6 @@ class MutualExclusionService final : public distributed_printing::MutualExclusio
                         access = true;
                     } else
                     if(my_timestamp.curTimestamp() == client_timestamp){
-                        // TODO: check last request number of this client before answer.
                         if(my_id < client_id){
                             access = true;
                         } else {
@@ -161,7 +161,6 @@ int request_access(){
 
         if(!status.ok()) {
             // Try again.
-            std::cout << "DEBUG: ERRO RequestAccess - " << status.error_details() << " - " << status.error_message();
             continue;
         }
 
@@ -243,8 +242,7 @@ int wanna_print() {
     std::uniform_int_distribution<> dist(1, 30);
 
     while(true){
-
-        std::cout << std::endl << "##########################" << std::endl;
+        std::cout << std::endl << "##########################" << std::endl << std::endl;
 
         // Sort a random number in seconds to sleep until the next asking to print.
         int seconds = dist(gen);
@@ -252,7 +250,8 @@ int wanna_print() {
 
         my_state = WAITING;
 
-        std::cout << ">>>>>>>>>>>>>> Requesting access" << std::endl;
+        std::cout << ">>> Requesting access" << std::endl;
+        print_curstate();
         request_access(); // Request access to print.
 
         // Wait access to print.
@@ -260,13 +259,16 @@ int wanna_print() {
 
         my_state = HOLDING;
 
-        std::cout << ">>>>>>>>>>>>>> Printing" << std::endl;
+        std::cout << ">>>>> Printing" << std::endl;
+        print_curstate();
         send_print("Hello, World!");
 
         my_state = RELEASED;
 
         std::cout << ">>>>>>>>>>>>>> Releasing Access" << std::endl;
+        print_curstate();
         release_access();
+
     }
 }
 
