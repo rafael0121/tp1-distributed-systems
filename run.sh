@@ -8,7 +8,7 @@ CLIENT_2_ADDRESS=0.0.0.0:55002
 CLIENT_3_ADDRESS=0.0.0.0:55003
 SERVER_ADDRESS=0.0.0.0:55000
 
-EXEC="gnome-terminal -- bash -c"
+EXEC="foot -- bash -c"
 
 $EXEC "./server/server --port $SERVER_ADDRESS ; bash" &
 

@@ -36,7 +36,6 @@ std::list<std::string> neighbors_address;
 
 // List of request awaiting.
 int neighbors_waiting = 0;
-std::vector<int> neighbors_requests = {0, 0, 0};
 
 // Count release replyed.
 int neighbors_released = 0;
@@ -84,7 +83,7 @@ class MutualExclusionService final : public distributed_printing::MutualExclusio
                 break;
                 case WAITING:
                     if(my_timestamp.curTimestamp() < client_timestamp){
-                        access = true;
+                        access = false;
                     } else
                     if(my_timestamp.curTimestamp() > client_timestamp){
                         access = true;
@@ -95,11 +94,6 @@ class MutualExclusionService final : public distributed_printing::MutualExclusio
                         } else {
                             access = false;
                         }
-                    }
-
-                    if(access == false ){
-                        neighbors_waiting++;
-                        neighbors_requests[client_id] = neighbors_waiting;
                     }
                     break;
                 case HOLDING:
@@ -125,10 +119,9 @@ class MutualExclusionService final : public distributed_printing::MutualExclusio
                     break;
                 case WAITING:
                     neighbors_released++;
-                    if(neighbors_released == neighbors_address.size()){
+                    if(neighbors_released >= neighbors_address.size()){
                         // Free wanna_printer
                         mt_wanna.unlock();
-                        neighbors_released = 0;
                     }
             }
 
@@ -150,7 +143,7 @@ int request_access(){
 
         request.set_client_id(my_id);
         request.set_lamport_timestamp(my_timestamp.curTimestamp());
-        request.set_request_number(my_request_number++);
+        request.set_request_number(my_request_number);
 
         // Call
         auto channel = grpc::CreateChannel(_address, grpc::InsecureChannelCredentials());
@@ -174,7 +167,7 @@ int request_access(){
         address.pop_back();
     }
 
-    if(neighbors_released == neighbors_address.size()){
+    if(neighbors_released >= neighbors_address.size()){
         // Free wanna_printer
         mt_wanna.unlock();
         neighbors_released = 0;
@@ -229,8 +222,8 @@ void send_print(std::string message) {
     grpc::ClientContext context;
     grpc::Status status = stub->SendToPrinter(&context, request, &response);
 
-    std::cout <<"[TS: " << my_timestamp.curTimestamp() << " ]"
-              << "[Printer answer: " << response.confirmation_message()  << " ]"
+    std::cout <<"[TS: " << my_timestamp.curTimestamp() << "]"
+              << "[Printer answer: " << response.confirmation_message()  << "]"
               << std::endl;
 
     my_timestamp.updateTimestamp(response.lamport_timestamp());
@@ -249,8 +242,8 @@ int wanna_print() {
         sleep(seconds);
 
         my_state = WAITING;
-
         std::cout << ">>> Requesting access" << std::endl;
+        my_request_number++; // 
         print_curstate();
         request_access(); // Request access to print.
 

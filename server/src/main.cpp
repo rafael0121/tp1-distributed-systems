@@ -9,6 +9,8 @@
 #include <lamport.hpp>
 #include <string>
 
+#define PRINT_TIME 10
+
 // Lamport CLock
 Lamport server_lamportClock;
 
@@ -24,11 +26,11 @@ class PrintingService final : public distributed_printing::PrintingService::Serv
             int64_t lamport_timestamp = request->lamport_timestamp();
             std::string message = request->message_content();
 
+            // Simulate a printing time.
+            sleep(PRINT_TIME);
+
             // Write message to stdout.
             std::cout << "[TS: " << lamport_timestamp << "] " << "CLIENT " << client_id << ": " << message << std::endl;
-
-            // Simulate a printing time.
-            sleep(3);
 
             response->set_success(true);
             response->set_confirmation_message("Ok, this was printed!");
