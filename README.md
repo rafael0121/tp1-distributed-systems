@@ -29,7 +29,7 @@ Para compilar o projeto é necessário construir o ambiente de compilação, par
 A partir da pasta raiz do projeto, execute:
 > ./setup.sh
 
-Agora, para executar os processos basta configurar o arquivo run.sh.
+Agora, para executar os processos, basta configurar o arquivo run.sh.
 
 Altere as portas dos clientes e do servidor para uma porta livre no sistema, o processo não executará se a porta estiver ocupada:
 ```
@@ -50,7 +50,7 @@ EXEC="alacritty -e bash -c"
 ```
 
 
-É possível aumentar  a quantidade de clientes que são executados basta adicionar mais clientes seguindo o padrão na seção **# 1** e **#5** do script .
+É possível aumentar a quantidade de clientes que são executados basta adicionar mais clientes seguindo o padrão na seção **#1** e **#5** do script .
 
 Agora basta executar a partir do diretório raiz o comando: 
 > ./run.sh
