@@ -97,3 +97,7 @@ A função *wanna_print*, realiza uma loop infinito, onde é gerado um valor ale
 Outra forma de liberar a execução do *wanna_print* acontece quando o processo está no estado *WAITING* e os outros processos liberam acessos para o processo através do método *ReleaseAccess*. 
 
 Para gerenciar as duas formas de liberação, foi criado a classe *NeighborsReleased* que manipula um vetor que armazena o ID dos processos vizinhos que liberaram acesso a impressora. A classe também utiliza *mutex* para controle do acesso ao vetor, garantindo que não haja concorrência entre as threads do cliente.
+
+# Testes
+
+Os vários testes feitos durante o desenvolvimento contribuíram para identificar bugs na implementação. No entanto, mesmo realizando os testes, é extremamente difícil à identificação de bugs que dependem de eventos específicos acontecerem em sequência, evidenciando a complexidade do desenvolvimento desses sistemas.
