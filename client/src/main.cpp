@@ -1,25 +1,36 @@
-// GRPC Library
-#include <grpc/grpc.h>
-#include <grpcpp/create_channel.h>
-#include <grpcpp/server_builder.h>
+//===================================================================
+// Libraries.
+//===================================================================
 
-// System Library.
+// System and Language
 #include <iostream>
 #include <string>
 #include <vector>
 #include <list>
 #include <thread>
 #include <random>
+#include <algorithm>
 
-// Private library
-#include <lamport.hpp>
-
+// GRPC
+#include <grpc/grpc.h>
+#include <grpcpp/create_channel.h>
+#include <grpcpp/server_builder.h>
 
 // Proto library
 #include <myproto/protocol.pb.h>
 #include <myproto/protocol.grpc.pb.h>
 
-// Functions to print info
+// Private library
+#include <lamport.hpp>
+
+// Private class
+#include "NeighborsReleased.cpp"
+
+//===================================================================
+// Macros
+//===================================================================
+
+// Macros to identify and print functions information.
 #define REQUEST_ACCESS 1
 #define RELEASE_ACCESS  2
 
@@ -28,17 +39,18 @@
 #define HOLDING  2
 #define WAITING  3
 
+//===================================================================
+// Client status / Globasl variables.
+//===================================================================
+
 // Port server.
 std::string server_address;
 
-// Port of clientes that also consume the printer.
+// Address of clients who also use the printer.
 std::list<std::string> neighbors_address;
 
-// List of request awaiting.
-int neighbors_waiting = 0;
-
 // Count release replyed.
-int neighbors_released = 0;
+NeighborsReleased *neighbors_released;
 
 /* This client status */
 int my_state = RELEASED;       // Current state.
@@ -47,26 +59,15 @@ int32_t my_request_number = 0; // Request number.
 int32_t my_id;            // Client identifier.
 std::string my_address;
 
+/* Mutex control my state */
+std::mutex mt_state;
+
 /* Mutex free wanna_printer */
 std::mutex mt_wanna;
 
-void print_curstate(){
-
-    std::string state_str = my_state == RELEASED ? "RELEASED" : my_state == HOLDING ? "HOLDING" : "WAITING";
-
-    std::cout << std::endl
-              << "[State: " << state_str << " ]" 
-              << std::endl
-              << "[Timestamp: " << my_timestamp.curTimestamp() << " ]" 
-              << std::endl
-              << "[RequestNumber: " << my_request_number << " ]"
-              << std::endl
-              << "[Neighbors Released: " << neighbors_released << " ]"
-              << std::endl
-              << "[Neighbors Waiting: " << neighbors_waiting << " ]"
-              << std::endl
-              << std::endl;
-}
+//===================================================================
+// Class GRPC
+//===================================================================
 
 class MutualExclusionService final : public distributed_printing::MutualExclusionService::Service {
     public:
@@ -101,6 +102,7 @@ class MutualExclusionService final : public distributed_printing::MutualExclusio
                 break;
             }
 
+            response->set_client_id(my_id);
             response->set_access_granted(access);
             response->set_lamport_timestamp(my_timestamp.updateTimestamp(client_timestamp));
 
@@ -112,24 +114,49 @@ class MutualExclusionService final : public distributed_printing::MutualExclusio
             int32_t client_id = request->client_id();
             int64_t client_timestamp = request->lamport_timestamp();
             int32_t client_request_number = request->request_number();
+
+            my_timestamp.updateTimestamp(client_timestamp);
  
+            mt_state.lock();
             switch(my_state) {
                 case RELEASED:
                 case HOLDING:
                     break;
                 case WAITING:
-                    neighbors_released++;
-                    if(neighbors_released >= neighbors_address.size()){
-                        // Free wanna_printer
+                    neighbors_released->push(client_id);
+                    if(neighbors_released->tryAccess()){
                         mt_wanna.unlock();
                     }
             }
-
-            my_timestamp.updateTimestamp(client_timestamp);
+            mt_state.unlock();
 
             return grpc::Status::OK;
         };
 };
+
+//===================================================================
+// Print Function
+//===================================================================
+
+void print_curstate(){
+
+    std::string state_str = my_state == RELEASED ? "RELEASED" : my_state == HOLDING ? "HOLDING" : "WAITING";
+
+    std::cout << std::endl
+              << "[State: " << state_str << " ]" 
+              << std::endl
+              << "[Timestamp: " << my_timestamp.curTimestamp() << " ]" 
+              << std::endl
+              << "[RequestNumber: " << my_request_number << " ]"
+              << std::endl
+              << "[Neighbors Released: " << neighbors_released->count() << " ]"
+              << std::endl
+              << std::endl;
+}
+
+//===================================================================
+// GRPC Handle Functions
+//===================================================================
 
 int request_access(){
     std::list<std::string> address = neighbors_address;
@@ -160,17 +187,14 @@ int request_access(){
         // Update my timestamp.
         my_timestamp.updateTimestamp(response.lamport_timestamp());
 
-        if(response.access_granted()) {
-            neighbors_released++;
+        if(response.access_granted() == true) {
+            neighbors_released->push(response.client_id());
+            if(neighbors_released->tryAccess()){
+                mt_wanna.unlock();
+            }
         }
 
         address.pop_back();
-    }
-
-    if(neighbors_released >= neighbors_address.size()){
-        // Free wanna_printer
-        mt_wanna.unlock();
-        neighbors_released = 0;
     }
 
     return true;
@@ -224,6 +248,7 @@ void send_print(std::string message) {
 
     std::cout <<"[TS: " << my_timestamp.curTimestamp() << "]"
               << "[Printer answer: " << response.confirmation_message()  << "]"
+              << std::endl
               << std::endl;
 
     my_timestamp.updateTimestamp(response.lamport_timestamp());
@@ -235,13 +260,17 @@ int wanna_print() {
     std::uniform_int_distribution<> dist(1, 30);
 
     while(true){
-        std::cout << std::endl << "##########################" << std::endl << std::endl;
-
         // Sort a random number in seconds to sleep until the next asking to print.
         int seconds = dist(gen);
+
+        std::cout << std::endl << "# (-_-) zzzzzZ # - "<< seconds << "s" << std::endl << std::endl;
+
         sleep(seconds);
 
+        mt_state.lock();
         my_state = WAITING;
+        mt_state.unlock();
+
         std::cout << ">>> Requesting access" << std::endl;
         my_request_number++; // 
         print_curstate();
@@ -250,20 +279,27 @@ int wanna_print() {
         // Wait access to print.
         mt_wanna.lock();
 
+        mt_state.lock();
         my_state = HOLDING;
+        mt_state.unlock();
 
-        std::cout << ">>>>> Printing" << std::endl;
+        std::cout << "--- Printing" << std::endl;
         print_curstate();
         send_print("Hello, World!");
 
+        mt_state.lock();
         my_state = RELEASED;
+        mt_state.unlock();
 
-        std::cout << ">>>>>>>>>>>>>> Releasing Access" << std::endl;
+        std::cout << "<<< Releasing Access" << std::endl;
         print_curstate();
         release_access();
-
     }
 }
+
+//===================================================================
+// Private Functions.
+//===================================================================
 
 int parse_args(int argc, char *argv[]){
     for (int i = 1; i < argc; i++) {
@@ -293,8 +329,14 @@ int parse_args(int argc, char *argv[]){
         return -1;
     }
 
+    neighbors_released = new NeighborsReleased(neighbors_address.size());
+
     return 0;
 }
+
+//===================================================================
+// Main Function
+//===================================================================
 
 int main(int argc, char *argv[]) {
     /* Parse CLI Arguments*/
@@ -304,8 +346,14 @@ int main(int argc, char *argv[]) {
         return -1;
     }
 
-    /* Threads */
-    // Answer access requests.
+    /**
+     * Lock wanna_print, will be unlocked
+     * only when all the other process 
+     * reply the request access.
+     */
+    mt_wanna.lock();
+
+    /* Setup GRPC client service */
     grpc::ServerBuilder builder;
     builder.AddListeningPort(my_address, grpc::InsecureServerCredentials());
 
@@ -320,6 +368,8 @@ int main(int argc, char *argv[]) {
     }
 
     std::cout << "===# Client [ " << my_id << " ] Port: [ " << my_address << " ] Started #===" << std::endl;
+
+    // Run wanna_print
     wanna_print(); // Printer user.
 
     return 0;

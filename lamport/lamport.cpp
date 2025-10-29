@@ -3,6 +3,9 @@
 // Constructor.
 Lamport::Lamport(): _curTimestamp(1) {}
 
+/**
+ * Update timestamp plus one.
+ */
 int64_t Lamport::updateTimestamp() {
     int32_t return_timestamp;
 
@@ -17,6 +20,11 @@ int64_t Lamport::updateTimestamp() {
     return _curTimestamp;
 }
 
+/**
+ * Update timestamp with the higher value between
+ * the current processor timestamp and the clock
+ * of the other processor.
+ */
 int64_t Lamport::updateTimestamp(int64_t otherClock) {
     int32_t return_timestamp;
 
@@ -37,7 +45,9 @@ int64_t Lamport::updateTimestamp(int64_t otherClock) {
     return return_timestamp;
 }
 
-
+/**
+ * Return the current timestamp.
+ */
 int64_t Lamport::curTimestamp() { 
     int32_t return_timestamp;
 

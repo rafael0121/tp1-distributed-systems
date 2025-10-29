@@ -1,15 +1,31 @@
-#include <iostream>
+//===================================================================
+// Libraries
+//===================================================================
 
+// System and Language
+#include <iostream>
+#include <string>
+
+// GRPC
 #include <grpc/grpc.h>
 #include <grpcpp/server_builder.h>
 
+// Protocol
 #include <myproto/protocol.grpc.pb.h>
 #include <myproto/protocol.pb.h>
 
+// Private
 #include <lamport.hpp>
-#include <string>
 
-#define PRINT_TIME 10
+//===================================================================
+// Macros
+//===================================================================
+
+#define PRINT_TIME 3
+
+//===================================================================
+// Global Variables
+//===================================================================
 
 // Lamport CLock
 Lamport server_lamportClock;
@@ -17,7 +33,13 @@ Lamport server_lamportClock;
 // Server address
 std::string server_address;
 
-/* Printing Service: SendToPrinter*/
+//===================================================================
+// GRPC Service
+//===================================================================
+
+/**
+ * GRPC service to print messagens in screen.
+ */
 class PrintingService final : public distributed_printing::PrintingService::Service{
     public:
         grpc::Status SendToPrinter(grpc::ServerContext *context, const distributed_printing::PrintRequest *request, distributed_printing::PrintResponse *response){
@@ -40,6 +62,14 @@ class PrintingService final : public distributed_printing::PrintingService::Serv
         }
 
 };
+
+//===================================================================
+// Private Functions
+//===================================================================
+
+/**
+ * Parse server args.
+ */
 int parse_args(int argc, char *argv[]){
     if (argc != 3) {
         return -1;
@@ -56,6 +86,10 @@ int parse_args(int argc, char *argv[]){
     return 0;
 }
 
+//===================================================================
+// Server main.
+//===================================================================
+
 int main(int argc, char *argv[]) {
     std::cout << "===# Server Started #===" << std::endl;
 
@@ -66,13 +100,19 @@ int main(int argc, char *argv[]) {
         return -1;
     }
 
+    /* GRPC server setup */
+
     grpc::ServerBuilder builder;
     builder.AddListeningPort(server_address, grpc::InsecureServerCredentials());
 
     PrintingService server_service;
     builder.RegisterService(&server_service);
 
+    // Start server.
     std::unique_ptr<grpc::Server> server(builder.BuildAndStart());
 
+    // Wait finish.
     server->Wait();
+
+    return 0;
 }
